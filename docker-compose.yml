@@ -10,8 +10,13 @@ services:
         extra_hosts:
             - 'host.docker.internal:host-gateway'
         ports:
-            - '${APP_PORT:-80}:80'
-            - '${VITE_PORT:-5173}:${VITE_PORT:-5173}'
+            # Bound to loopback like the backing services below. Published as
+            # '80:80' this is the application itself on every interface of the
+            # host - and it runs with APP_DEBUG=true, so any machine on the same
+            # network gets Laravel's stack traces, environment and queries on
+            # the first error. Vite's dev server is the same story.
+            - '127.0.0.1:${APP_PORT:-80}:80'
+            - '127.0.0.1:${VITE_PORT:-5173}:${VITE_PORT:-5173}'
         environment:
             WWWUSER: '${WWWUSER}'
             LARAVEL_SAIL: 1
@@ -30,14 +35,21 @@ services:
     mysql:
         image: 'mysql/mysql-server:8.0'
         ports:
-            - '${FORWARD_DB_PORT:-3306}:3306'
+            # Bound to the loopback interface. Published as '3306:3306' the
+            # database answered on every interface of the host, so it was
+            # reachable from anything else on the network the developer happened
+            # to be on.
+            - '127.0.0.1:${FORWARD_DB_PORT:-3306}:3306'
         environment:
             MYSQL_ROOT_PASSWORD: '${DB_PASSWORD}'
             MYSQL_ROOT_HOST: '%'
             MYSQL_DATABASE: '${DB_DATABASE}'
             MYSQL_USER: '${DB_USERNAME}'
             MYSQL_PASSWORD: '${DB_PASSWORD}'
-            MYSQL_ALLOW_EMPTY_PASSWORD: 1
+            # MYSQL_ALLOW_EMPTY_PASSWORD used to be set here. Together with an
+            # empty DB_PASSWORD in .env.example, MYSQL_ROOT_HOST '%' and a
+            # published port, that started a MySQL whose root account had no
+            # password and accepted connections from anywhere.
         volumes:
             - 'sail-mysql:/var/lib/mysql'
             - './vendor/laravel/sail/database/mysql/create-testing-database.sh:/docker-entrypoint-initdb.d/10-create-testing-database.sh'
@@ -54,7 +66,9 @@ services:
     redis:
         image: 'redis:alpine'
         ports:
-            - '${FORWARD_REDIS_PORT:-6379}:6379'
+            # Loopback only: this Redis runs with no password at all, so on
+            # every interface it was an open data store for the network.
+            - '127.0.0.1:${FORWARD_REDIS_PORT:-6379}:6379'
         volumes:
             - 'sail-redis:/data'
         networks:
@@ -69,7 +83,9 @@ services:
     meilisearch:
         image: 'getmeili/meilisearch:latest'
         ports:
-            - '${FORWARD_MEILISEARCH_PORT:-7700}:7700'
+            # Loopback only: no master key is configured, so the search index
+            # is readable and writable by whoever can reach the port.
+            - '127.0.0.1:${FORWARD_MEILISEARCH_PORT:-7700}:7700'
         volumes:
             - 'sail-meilisearch:/meili_data'
         networks:
@@ -86,8 +102,10 @@ services:
     mailpit:
         image: 'axllent/mailpit:latest'
         ports:
-            - '${FORWARD_MAILPIT_PORT:-1025}:1025'
-            - '${FORWARD_MAILPIT_DASHBOARD_PORT:-8025}:8025'
+            # Loopback only: the dashboard shows every message the app sends,
+            # with no authentication in front of it.
+            - '127.0.0.1:${FORWARD_MAILPIT_PORT:-1025}:1025'
+            - '127.0.0.1:${FORWARD_MAILPIT_DASHBOARD_PORT:-8025}:8025'
         networks:
             - sail
     selenium:
