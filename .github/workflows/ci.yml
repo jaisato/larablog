@@ -1,0 +1,91 @@
+name: CI
+
+# Nothing ran this repository's checks before: the test suite, the lockfile
+# audits and the Vite build only happened when somebody remembered to run them
+# by hand, and a lockfile advisory published after a merge went unnoticed.
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+  schedule:
+    # Weekly, so an advisory published against something composer.lock or
+    # package-lock.json already pins turns the build red without a commit.
+    - cron: "17 6 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  COMPOSER_NO_INTERACTION: '1'
+
+jobs:
+  test:
+    name: Tests (PHPUnit)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # 8.2 is config.platform.php in composer.json, the version the lock is
+      # resolved for, so it is the one the suite has to pass on.
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          extensions: dom, mbstring, pdo_sqlite, sqlite3
+          coverage: none
+          tools: composer:v2
+
+      - name: Validate composer.json and composer.lock
+        run: composer validate --strict
+
+      - name: Install dependencies
+        run: composer install --prefer-dist --no-progress
+
+      # phpunit.xml selects in-memory SQLite, so no database service is needed.
+      - name: Run the test suite
+        run: vendor/bin/phpunit
+
+  audit:
+    name: Dependency audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          coverage: none
+          tools: composer:v2
+
+      # --locked reads composer.lock and installs nothing.
+      - name: composer audit
+        run: composer audit --locked --abandoned=report
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      # Works from package-lock.json alone. axios ends up in the browser bundle,
+      # so devDependencies are audited too.
+      - name: npm audit
+        run: npm audit
+
+  assets:
+    name: Front-end build (Vite)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - run: npm ci
+
+      - run: npm run build
