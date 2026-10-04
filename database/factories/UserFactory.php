@@ -3,6 +3,7 @@
 namespace Database\Factories;
 
 use Illuminate\Database\Eloquent\Factories\Factory;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
 
 /**
@@ -10,6 +11,11 @@ use Illuminate\Support\Str;
  */
 class UserFactory extends Factory
 {
+    /**
+     * The password every factory user gets ("password"), hashed once.
+     */
+    protected static ?string $password;
+
     /**
      * Define the model's default state.
      *
@@ -21,7 +27,11 @@ class UserFactory extends Factory
             'name' => fake()->name(),
             'email' => fake()->unique()->safeEmail(),
             'email_verified_at' => now(),
-            'password' => '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', // password
+            // Hashed with the application's own hashing configuration, as the
+            // current Laravel skeleton does. A hard-coded cost-10 bcrypt string
+            // is rejected by the model's 'hashed' cast wherever the configured
+            // cost differs (phpunit.xml sets BCRYPT_ROUNDS=4).
+            'password' => static::$password ??= Hash::make('password'),
             'remember_token' => Str::random(10),
         ];
     }
