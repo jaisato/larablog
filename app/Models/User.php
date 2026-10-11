@@ -40,5 +40,9 @@ class User extends Authenticatable
      */
     protected $casts = [
         'email_verified_at' => 'datetime',
+        // Without this cast User::create(['password' => $plain]) and
+        // $user->update(['password' => $plain]) persist the password in clear
+        // text: nothing else in the model hashes it.
+        'password' => 'hashed',
     ];
 }
