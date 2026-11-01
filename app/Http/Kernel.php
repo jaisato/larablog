@@ -14,7 +14,12 @@ class Kernel extends HttpKernel
      * @var array<int, class-string|string>
      */
     protected $middleware = [
-        // \App\Http\Middleware\TrustHosts::class,
+        // Only APP_URL's host (and its subdomains) is accepted outside local
+        // and testing. Commented out, any Host header was taken at its word and
+        // ended up in every absolute URL the app builds - url(), route(),
+        // password-reset and verification mails - so a forged Host turned them
+        // into links to an attacker's domain (host header poisoning).
+        \App\Http\Middleware\TrustHosts::class,
         \App\Http\Middleware\TrustProxies::class,
         \Illuminate\Http\Middleware\HandleCors::class,
         \App\Http\Middleware\PreventRequestsDuringMaintenance::class,
